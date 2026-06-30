@@ -14,39 +14,37 @@ The app source is in `bierolympiade.html`.
 
 `index.html` redirects to the app so the root URL works.
 
-## Shared sync backend (one shared password)
+## Shared score sync (Firebase, no own server)
 
-GitHub Pages serves the frontend. Shared persistence is handled by the minimal JSON backend in `backend/`.
+GitHub Pages hosts the app, Firebase Realtime Database stores the shared state.
 
-### Backend environment
+### 1. Create Firebase project
 
-Copy `backend/.env.example` to `backend/.env` and set:
+1. Open https://console.firebase.google.com
+2. Create project (Spark free plan is usually enough)
+3. Add a Web App and copy Firebase config values
 
-- `APP_PASSWORD`: one shared password for all users
-- `ALLOWED_ORIGIN`: frontend origin (for this repo: `https://nkoerw.github.io`)
-- `PORT`: backend port (default `8787`)
+### 2. Enable Realtime Database
 
-### Run backend locally
+1. Build -> Realtime Database -> Create Database
+2. Choose region near you
+3. For quick setup, start in test mode while you try it
 
-```bash
-cd backend
-npm install
-# PowerShell example
-$env:APP_PASSWORD="your-shared-password"
-$env:ALLOWED_ORIGIN="https://nkoerw.github.io"
-npm start
-```
+### 3. Add Firebase config to app
 
-### Deploy backend
+Edit `bierolympiade.html` in the `SYNC` object:
 
-Deploy `backend/` to any Node host (Render, Railway, Fly.io, VPS, etc.) with the same env vars.
+- `firebaseConfig.apiKey`
+- `firebaseConfig.authDomain`
+- `firebaseConfig.databaseURL`
+- `firebaseConfig.projectId`
+- `firebaseConfig.appId`
+- `room` (shared room name, e.g. `provence-2026`)
 
-### Configure frontend
+### 4. Push to GitHub
 
-In `bierolympiade.html`, set in `SYNC`:
+After push, GitHub Pages redeploys automatically. All users opening the same site and room see one shared live score.
 
-- `backendUrl`: your backend URL (for example `https://bier-backend.example.com`)
-- `room`: shared room name
+### Optional: lock database rules later
 
-Users then open Setup -> `Passwort setzen` once and enter the same password.
-After that, all users in the same room see shared persistent data.
+After testing, tighten rules in Firebase so random users cannot write.
