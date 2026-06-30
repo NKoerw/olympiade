@@ -221,12 +221,12 @@
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script>
 (function(){
   "use strict";
 
-  // ---------- Shared storage via Firebase Realtime Database ----------
+  // ---------- Shared storage via Firebase Firestore ----------
   var KEY = "bierolympiade:state";
   var SYNC = {
     enabled: true,
@@ -234,7 +234,6 @@
     firebaseConfig: {
       apiKey: "AIzaSyCfAVfdH_bGPLfQLgYYuOLmEb9rXIF17aI",
       authDomain: "olympia-d1422.firebaseapp.com",
-      databaseURL: "https://olympia-d1422-default-rtdb.europe-west1.firebasedatabase.app",
       projectId: "olympia-d1422",
       storageBucket: "olympia-d1422.firebasestorage.app",
       messagingSenderId: "137466200689",
@@ -246,8 +245,9 @@
   var hasLocalStorage = typeof window !== "undefined" && !!window.localStorage;
   var syncReady = false;
   var syncLabel = "Nur lokal gespeichert (pro Geraet).";
-  var firebaseDb = null;
-  var roomRef = null;
+  var firestore = null;
+  var roomDocRef = null;
+  var roomUnsub = null;
   var lastSavedJson = "";
   var lastRemoteUpdatedAt = 0;
 
@@ -263,7 +263,7 @@
     if(!SYNC.enabled) return false;
     if(typeof window === "undefined" || !window.firebase) return false;
     var cfg = SYNC.firebaseConfig || {};
-    var required = ["apiKey","authDomain","databaseURL","projectId","appId"];
+    var required = ["apiKey","authDomain","projectId","appId"];
     for(var i=0;i<required.length;i++){
       var v = cfg[required[i]];
       if(isPlaceholder(v)) return false;
@@ -317,12 +317,13 @@
       var app = (window.firebase.apps && window.firebase.apps.length)
         ? window.firebase.app()
         : window.firebase.initializeApp(SYNC.firebaseConfig);
-      firebaseDb = app.database();
-      roomRef = firebaseDb.ref("olympiade").child(roomKey());
+      firestore = app.firestore();
+      roomDocRef = firestore.collection("olympiade").doc(roomKey());
 
-      roomRef.off("value");
-      roomRef.on("value", function(snapshot){
-        var payload = snapshot.val();
+      if(roomUnsub){ roomUnsub(); roomUnsub=null; }
+      roomUnsub = roomDocRef.onSnapshot(function(snapshot){
+        if(!snapshot.exists) return;
+        var payload = snapshot.data();
         if(!payload || !payload.state) return;
         var incoming = normalizeState(payload.state);
         if(!incoming) return;
@@ -348,14 +349,14 @@
     }
   }
   async function loadRemoteEnvelope(){
-    if(!roomRef) return null;
-    var snap = await roomRef.once("value");
-    return snap.val();
+    if(!roomDocRef) return null;
+    var snap = await roomDocRef.get();
+    return snap.exists ? snap.data() : null;
   }
   async function saveRemoteState(snapshot){
-    if(!roomRef) return null;
+    if(!roomDocRef) return null;
     var payload = {state:snapshot, updatedAt:Date.now()};
-    await roomRef.set(payload);
+    await roomDocRef.set(payload, {merge:true});
     return payload;
   }
   async function loadState(){

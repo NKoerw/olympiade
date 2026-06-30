@@ -16,7 +16,7 @@ The app source is in `bierolympiade.html`.
 
 ## Shared score sync (Firebase, no own server)
 
-GitHub Pages hosts the app, Firebase Realtime Database stores the shared state.
+GitHub Pages hosts the app, Firebase Firestore stores the shared state.
 
 ### 1. Create Firebase project
 
@@ -24,9 +24,9 @@ GitHub Pages hosts the app, Firebase Realtime Database stores the shared state.
 2. Create project (Spark free plan is usually enough)
 3. Add a Web App and copy Firebase config values
 
-### 2. Enable Realtime Database
+### 2. Enable Firestore Database
 
-1. Build -> Realtime Database -> Create Database
+1. Build -> Firestore Database -> Create Database
 2. Choose region near you
 3. For quick setup, start in test mode while you try it
 
@@ -36,7 +36,6 @@ Edit `bierolympiade.html` in the `SYNC` object:
 
 - `firebaseConfig.apiKey`
 - `firebaseConfig.authDomain`
-- `firebaseConfig.databaseURL`
 - `firebaseConfig.projectId`
 - `firebaseConfig.appId`
 - `room` (shared room name, e.g. `provence-2026`)
