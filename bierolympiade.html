@@ -220,39 +220,33 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
   "use strict";
 
-  // ---------- Shared storage (Supabase) with local fallback ----------
+  // ---------- Shared storage via minimal password backend ----------
   var KEY = "bierolympiade:state";
+  var PASSWORD_KEY = "bierolympiade:backend-password";
   var SYNC = {
-    // Fill these three values after creating a Supabase project.
-    // If left unchanged, the app stays local-only per device.
     enabled: true,
-    supabaseUrl: "https://YOUR-PROJECT.supabase.co",
-    supabaseAnonKey: "YOUR-ANON-KEY",
+    backendUrl: "https://YOUR-BACKEND-URL",
     room: "provence-2026"
   };
-  var SUPABASE_TABLE = "olympiade_state";
   var hasArtifactStore = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
   var hasLocalStorage = typeof window !== "undefined" && !!window.localStorage;
-  var supabaseClient = null;
   var syncReady = false;
   var syncLabel = "Nur lokal gespeichert (pro Gerät).";
+  var backendPassword = "";
   var lastSavedJson = "";
-  var remoteChannel = null;
+  var lastRemoteUpdatedAt = "";
+  var syncPollTimer = null;
+  var syncPollInFlight = false;
 
   function isPlaceholder(v){
-    return !v || /YOUR-PROJECT|YOUR-ANON-KEY/.test(v);
+    return !v || /YOUR-BACKEND-URL/.test(v);
   }
-  function canUseSupabase(){
-    if(!SYNC.enabled) return false;
-    if(typeof window === "undefined") return false;
-    if(!window.supabase || typeof window.supabase.createClient !== "function") return false;
-    if(isPlaceholder(SYNC.supabaseUrl) || isPlaceholder(SYNC.supabaseAnonKey)) return false;
-    return true;
+  function canUseBackend(){
+    return SYNC.enabled && !isPlaceholder(SYNC.backendUrl);
   }
   function normalizeState(raw){
     if(!raw || typeof raw !== "object") return null;
@@ -264,6 +258,43 @@
     if(!raw.ui) raw.ui={};
     delete raw.scores;
     return raw;
+  }
+  function readSavedPassword(){
+    if(!hasLocalStorage) return;
+    try{ backendPassword = window.localStorage.getItem(PASSWORD_KEY) || ""; }
+    catch(e){ backendPassword = ""; }
+  }
+  function writeSavedPassword(pass){
+    backendPassword = (pass||"").trim();
+    if(!hasLocalStorage) return;
+    try{
+      if(backendPassword) window.localStorage.setItem(PASSWORD_KEY, backendPassword);
+      else window.localStorage.removeItem(PASSWORD_KEY);
+    }catch(e){ console.warn("password cache failed", e); }
+  }
+  function buildApiUrl(path){
+    var base = (SYNC.backendUrl||"").replace(/\/+$/,"");
+    return base + path;
+  }
+  async function apiJson(path, options){
+    var opts = options || {};
+    var headers = opts.headers || {};
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+    if(backendPassword) headers["X-App-Password"] = backendPassword;
+    opts.headers = headers;
+    opts.cache = "no-store";
+    var res = await fetch(buildApiUrl(path), opts);
+    var text = await res.text();
+    var data = null;
+    if(text){
+      try{ data = JSON.parse(text); }
+      catch(e){ data = {message:text}; }
+    }
+    if(!res.ok){
+      var msg = data && data.error ? data.error : (data && data.message ? data.message : res.statusText);
+      throw new Error("HTTP "+res.status+" "+msg);
+    }
+    return data;
   }
   async function loadLocalState(){
     if(hasArtifactStore){
@@ -289,82 +320,155 @@
       try{ window.localStorage.setItem(KEY, text); }catch(e){ console.warn("localStorage save failed", e); }
     }
   }
-  function setupRealtime(){
-    if(!supabaseClient) return;
-    if(remoteChannel){
-      supabaseClient.removeChannel(remoteChannel);
-      remoteChannel = null;
-    }
-    remoteChannel = supabaseClient
-      .channel("room-"+SYNC.room)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: SUPABASE_TABLE,
-        filter: "room=eq."+SYNC.room
-      }, function(payload){
-        if(!payload || !payload.new || !payload.new.state) return;
-        var incoming = normalizeState(payload.new.state);
-        if(!incoming) return;
-        var incomingJson = JSON.stringify(incoming);
-        if(incomingJson === lastSavedJson) return;
-        state = incoming;
-        lastSavedJson = incomingJson;
-        render();
-      })
-      .subscribe();
-  }
-  async function loadRemoteState(){
-    var res = await supabaseClient
-      .from(SUPABASE_TABLE)
-      .select("state")
-      .eq("room", SYNC.room)
-      .maybeSingle();
-    if(res.error) throw res.error;
-    return res.data && res.data.state ? normalizeState(res.data.state) : null;
+  async function loadRemoteEnvelope(){
+    return apiJson("/api/state?room="+encodeURIComponent(SYNC.room), {method:"GET"});
   }
   async function saveRemoteState(snapshot){
-    var res = await supabaseClient
-      .from(SUPABASE_TABLE)
-      .upsert({
-        room: SYNC.room,
-        state: snapshot,
-        updated_at: new Date().toISOString()
-      }, {onConflict: "room"});
-    if(res.error) throw res.error;
+    return apiJson("/api/state?room="+encodeURIComponent(SYNC.room), {
+      method:"PUT",
+      body:JSON.stringify({state:snapshot})
+    });
   }
-  async function loadState(){
-    var local = await loadLocalState();
-    if(!canUseSupabase()){
+  function stopSyncPolling(){
+    if(syncPollTimer){
+      clearInterval(syncPollTimer);
+      syncPollTimer = null;
+    }
+  }
+  function startSyncPolling(){
+    stopSyncPolling();
+    if(!syncReady) return;
+    syncPollTimer = setInterval(function(){ pollRemoteState(); }, 2500);
+  }
+  async function pollRemoteState(){
+    if(!syncReady || syncPollInFlight) return;
+    syncPollInFlight = true;
+    try{
+      var remote = await loadRemoteEnvelope();
+      if(!remote || !remote.state) return;
+      if(remote.updatedAt && remote.updatedAt===lastRemoteUpdatedAt) return;
+      var incoming = normalizeState(remote.state);
+      if(!incoming) return;
+      var incomingJson = JSON.stringify(incoming);
+      lastRemoteUpdatedAt = remote.updatedAt || lastRemoteUpdatedAt;
+      if(incomingJson === lastSavedJson) return;
+      state = incoming;
+      lastSavedJson = incomingJson;
+      render();
+    }catch(e){
+      console.warn("sync poll failed", e);
+    }finally{
+      syncPollInFlight = false;
+    }
+  }
+  async function connectBackend(interactive){
+    if(!canUseBackend()){
       syncReady = false;
       syncLabel = "Nur lokal gespeichert (pro Gerät).";
-      return local;
+      stopSyncPolling();
+      return false;
     }
-
+    if(!backendPassword && interactive){
+      var entered = window.prompt("Sync-Passwort eingeben");
+      if(entered===null){
+        syncReady = false;
+        syncLabel = "Passwort fehlt. Nur lokale Speicherung aktiv.";
+        return false;
+      }
+      writeSavedPassword(entered);
+    }
+    if(!backendPassword){
+      syncReady = false;
+      syncLabel = "Passwort fehlt. Im Setup auf 'Passwort setzen' tippen.";
+      stopSyncPolling();
+      return false;
+    }
     try{
-      supabaseClient = window.supabase.createClient(SYNC.supabaseUrl, SYNC.supabaseAnonKey, {
-        auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false}
-      });
-      var remote = await loadRemoteState();
+      await apiJson("/api/login", {method:"POST", body:JSON.stringify({room:SYNC.room})});
       syncReady = true;
       syncLabel = "Live-Sync aktiv. Alle sehen denselben Stand.";
-      setupRealtime();
-
-      if(remote){
-        lastSavedJson = JSON.stringify(remote);
-        return remote;
+      startSyncPolling();
+      return true;
+    }catch(e){
+      syncReady = false;
+      syncLabel = "Backend nicht erreichbar oder Passwort falsch.";
+      stopSyncPolling();
+      if(interactive) alert("Sync fehlgeschlagen: "+e.message);
+      return false;
+    }
+  }
+  async function setSyncPasswordInteractive(){
+    if(!canUseBackend()){
+      alert("Bitte zuerst SYNC.backendUrl im Code setzen.");
+      return;
+    }
+    var entered = window.prompt("Sync-Passwort eingeben oder aendern");
+    if(entered===null) return;
+    entered = entered.trim();
+    if(!entered){
+      alert("Leeres Passwort ist nicht erlaubt.");
+      return;
+    }
+    writeSavedPassword(entered);
+    var ok = await connectBackend(true);
+    if(!ok){ renderSetup(); return; }
+    try{
+      var remote = await loadRemoteEnvelope();
+      if(remote && remote.state){
+        var incoming = normalizeState(remote.state);
+        if(incoming){
+          state = incoming;
+          lastSavedJson = JSON.stringify(incoming);
+          lastRemoteUpdatedAt = remote.updatedAt || "";
+          render();
+          return;
+        }
+      }
+      if(state){
+        var saved = await saveRemoteState(state);
+        lastSavedJson = JSON.stringify(state);
+        lastRemoteUpdatedAt = saved && saved.updatedAt ? saved.updatedAt : "";
+      }
+    }catch(e){
+      console.error("sync refresh failed", e);
+    }
+    renderSetup();
+  }
+  function clearSyncPassword(){
+    writeSavedPassword("");
+    syncReady = false;
+    stopSyncPolling();
+    syncLabel = canUseBackend()
+      ? "Passwort entfernt. Im Setup auf 'Passwort setzen' tippen."
+      : "Nur lokal gespeichert (pro Gerät).";
+  }
+  async function loadState(){
+    readSavedPassword();
+    var local = await loadLocalState();
+    var connected = await connectBackend(false);
+    if(!connected) return local;
+    try{
+      var remote = await loadRemoteEnvelope();
+      if(remote && remote.state){
+        var incoming = normalizeState(remote.state);
+        if(incoming){
+          lastSavedJson = JSON.stringify(incoming);
+          lastRemoteUpdatedAt = remote.updatedAt || "";
+          return incoming;
+        }
       }
       if(local){
-        await saveRemoteState(local);
+        var saved = await saveRemoteState(local);
         lastSavedJson = JSON.stringify(local);
+        lastRemoteUpdatedAt = saved && saved.updatedAt ? saved.updatedAt : "";
         return local;
       }
       return null;
     }catch(e){
-      console.error("Supabase sync failed, fallback to local", e);
-      supabaseClient = null;
+      console.error("Backend sync failed, fallback to local", e);
       syncReady = false;
       syncLabel = "Sync-Fehler, nur lokal gespeichert.";
+      stopSyncPolling();
       return local;
     }
   }
@@ -379,8 +483,9 @@
     var snapshotJson = JSON.stringify(snapshot);
     try{
       await saveLocalState(snapshot);
-      if(syncReady && supabaseClient){
-        await saveRemoteState(snapshot);
+      if(syncReady){
+        var saved = await saveRemoteState(snapshot);
+        if(saved && saved.updatedAt) lastRemoteUpdatedAt = saved.updatedAt;
       }
       lastSavedJson = snapshotJson;
     }catch(e){
@@ -651,11 +756,17 @@
     '</div>';
     html+='</div>';
 
+    html+='<div class="label" style="margin-top:18px">Gemeinsamer Sync</div>';
+    html+='<div class="card">'+
+      '<div class="hint" style="margin:0 2px 10px">'+esc(syncLabel)+' Raum: <b>'+esc(SYNC.room)+'</b>.</div>'+
+      '<div class="add-row">'+
+        '<button class="btn olive" data-act="sync-password">🔐 Passwort '+(backendPassword?'ändern':'setzen')+'</button>'+
+        '<button class="btn" style="background:#B0492F" data-act="sync-clear">Passwort löschen</button>'+
+      '</div>'+
+      '<div class="hint" style="margin:10px 2px 0">Backend-URL: <b>'+esc(SYNC.backendUrl)+'</b></div>'+
+    '</div>';
+
     html+='<button class="btn danger" data-act="reset">Alles zurücksetzen</button>';
-    var syncHint = syncReady
-      ? (syncLabel+' Raum: <b>'+esc(SYNC.room)+'</b>.')
-      : ('Nur lokal gespeichert. Trage Supabase URL + Anon Key oben im Code ein, um einen gemeinsamen Stand zu nutzen.');
-    html+='<div class="hint" style="text-align:center;margin-top:10px">'+syncHint+'</div>';
     el.innerHTML=html;
   }
 
@@ -680,6 +791,13 @@
     else if(act==="disc-down"){ moveDisc(id,1); }
     else if(act==="add-team"){ addTeam(); }
     else if(act==="add-disc"){ addDisc(); }
+    else if(act==="sync-password"){
+      setSyncPasswordInteractive();
+    }
+    else if(act==="sync-clear"){
+      clearSyncPassword();
+      renderSetup();
+    }
     else if(act==="reset"){
       if(confirm("Wirklich alles zurücksetzen? Teams, Spiele und Punkte werden gelöscht.")){
         state=seed(); save(); render();
