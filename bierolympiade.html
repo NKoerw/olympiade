@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bierolympiade · Provence</title>
+<style>
+  :root{
+    --sand:#F2EADB; --sand2:#EDE3D0; --card:#FCF8F0; --ink:#33291E; --mute:#7A6E5D;
+    --blue:#2C7193; --terra:#C25A3C; --olive:#7C894C; --lav:#8C7BBE; --pool:#1AA396;
+    --deep:#143A4E; --gold:#D9A641; --silver:#B9B6AC; --bronze:#C58A5B;
+    --line:#E2D6BF;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,Cambria,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--sans); color:var(--ink); background:var(--sand);
+    background-image:radial-gradient(120% 60% at 50% -10%, #FBF4E6 0%, var(--sand) 55%);
+    min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:680px;margin:0 auto;padding:0 14px 120px}
+
+  /* Header */
+  header{
+    background:linear-gradient(135deg,#15485E 0%, var(--deep) 70%);
+    color:#fff; border-radius:0 0 22px 22px; padding:20px 18px 16px;
+    box-shadow:0 8px 24px rgba(20,58,78,.18); position:relative; overflow:hidden;
+  }
+  header .eyebrow{font-size:11px;letter-spacing:3px;font-weight:700;color:#9FD0CE;text-transform:uppercase}
+  header h1{font-family:var(--serif);font-size:30px;line-height:1.04;margin:4px 0 0;font-weight:700}
+  header .sub{font-size:13px;color:#CFE0E2;margin-top:5px}
+  header .sun{position:absolute;right:-14px;top:-14px;font-size:96px;opacity:.12;transform:rotate(8deg)}
+  .beerline{margin-top:10px;display:inline-flex;align-items:center;gap:7px;background:var(--terra);
+    padding:6px 12px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:0 4px 12px rgba(194,90,60,.35)}
+
+  /* Tabs */
+  nav.tabs{display:flex;gap:6px;margin:14px 0 16px;background:var(--sand2);padding:5px;border-radius:14px;
+    border:1px solid var(--line)}
+  nav.tabs button{flex:1;border:0;background:transparent;color:var(--mute);font-family:var(--sans);
+    font-weight:700;font-size:14px;padding:11px 4px;border-radius:10px;cursor:pointer;transition:.15s}
+  nav.tabs button.active{background:var(--card);color:var(--ink);box-shadow:0 2px 8px rgba(51,41,30,.10)}
+
+  section{display:none;animation:fade .2s ease}
+  section.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  h2.sec{font-family:var(--serif);font-size:21px;margin:4px 2px 12px;font-weight:700}
+  .hint{font-size:12.5px;color:var(--mute);margin:-6px 2px 14px;font-style:italic}
+
+  /* Cards */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;
+    margin-bottom:11px;box-shadow:0 3px 10px rgba(51,41,30,.05)}
+
+  /* Standings */
+  .total-beer{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--deep);
+    color:#fff;border-radius:14px;padding:11px;margin-bottom:14px;font-weight:700;font-size:15px}
+  .total-beer b{font-size:20px;color:#FFD98A}
+
+  .podium{display:flex;align-items:flex-end;gap:8px;margin-bottom:6px}
+  .pod{flex:1;border-radius:14px 14px 10px 10px;padding:12px 8px 10px;text-align:center;color:#fff;position:relative;
+    box-shadow:0 4px 12px rgba(51,41,30,.14)}
+  .pod .medal{font-size:22px}
+  .pod .pname{font-weight:800;font-size:14px;margin-top:2px;line-height:1.1;word-break:break-word}
+  .pod .ppts{font-family:var(--serif);font-weight:700;font-size:22px;margin-top:3px}
+  .pod.g{background:linear-gradient(160deg,#E8B84B,#C9952E);min-height:122px}
+  .pod.s{background:linear-gradient(160deg,#C3C0B6,#9E9B90);min-height:104px}
+  .pod.b{background:linear-gradient(160deg,#CE9764,#A9703F);min-height:92px}
+
+  .rank-row{display:flex;align-items:center;gap:11px;padding:11px 6px;border-bottom:1px solid var(--line)}
+  .rank-row:last-child{border-bottom:0}
+  .rank-num{width:24px;text-align:center;font-family:var(--serif);font-weight:700;font-size:17px;color:var(--mute);flex:none}
+  .dot{width:13px;height:13px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.6) inset}
+  .rank-name{flex:1;font-weight:700;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rank-pts{font-family:var(--serif);font-weight:700;font-size:18px;margin-right:4px}
+  .rank-pts small{font-family:var(--sans);font-size:11px;color:var(--mute);font-weight:600}
+
+  .beer-counter{display:flex;align-items:center;gap:6px;background:var(--sand2);border-radius:999px;padding:3px}
+  .beer-counter .bval{min-width:30px;text-align:center;font-weight:800;font-size:14px}
+  .beer-counter .bval .em{font-size:13px}
+
+  /* Steppers */
+  .step{width:30px;height:30px;border:0;border-radius:50%;font-size:18px;font-weight:700;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;line-height:1;flex:none;transition:.12s;color:#fff}
+  .step:active{transform:scale(.9)}
+  .step.minus{background:#C9BBA3;color:#5C4F3B}
+  .step.plus{background:var(--blue)}
+  .step.beer-plus{background:var(--terra)}
+  .step.beer-minus{background:#C9BBA3;color:#5C4F3B}
+
+  /* Wertung */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;margin:0 -2px 6px;-webkit-overflow-scrolling:touch}
+  .chip{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-size:13.5px;
+    padding:9px 14px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .score-row{display:flex;align-items:center;gap:11px;padding:10px 4px;border-bottom:1px solid var(--line)}
+  .score-row:last-child{border-bottom:0}
+  .score-val{min-width:42px;text-align:center;font-family:var(--serif);font-weight:700;font-size:20px}
+  .empty{text-align:center;color:var(--mute);padding:26px 10px;font-style:italic;font-size:14px}
+
+  /* Setup */
+  .setup-item{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .setup-item:last-child{border-bottom:0}
+  .setup-item input.name{flex:1;border:1px solid transparent;background:transparent;font-family:var(--sans);
+    font-size:15px;font-weight:600;color:var(--ink);padding:7px 8px;border-radius:8px;min-width:0}
+  .setup-item input.name:focus{outline:none;border-color:var(--blue);background:#fff}
+  .swatches{display:flex;gap:5px;flex:none}
+  .sw{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+  .sw.on{border-color:var(--ink);transform:scale(1.12)}
+  .del{width:30px;height:30px;border:0;background:#EFE6D4;color:#B0492F;border-radius:8px;font-size:16px;cursor:pointer;flex:none}
+  .add-row{display:flex;gap:8px;margin-top:11px}
+  .add-row input{flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:15px;
+    font-family:var(--sans);color:var(--ink);background:#fff;min-width:0}
+  .add-row input:focus{outline:none;border-color:var(--blue)}
+  .add-row button,.btn{border:0;border-radius:10px;padding:11px 16px;font-weight:700;font-size:14px;cursor:pointer;
+    background:var(--blue);color:#fff;font-family:var(--sans);flex:none}
+  .btn.olive{background:var(--olive)}
+  .btn.danger{background:#fff;color:#B0492F;border:1.5px solid #E3C9BD;width:100%;margin-top:14px}
+  .label{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--blue);margin:2px 2px 8px}
+
+  /* Share */
+  .share-btn{width:100%;border:0;border-radius:14px;padding:14px;font-weight:800;font-size:15px;cursor:pointer;
+    background:linear-gradient(135deg,#2CB36B,#1F9C58);color:#fff;margin-bottom:14px;
+    box-shadow:0 5px 16px rgba(31,156,88,.32);display:flex;align-items:center;justify-content:center;gap:8px}
+  .share-btn:active{transform:scale(.98)}
+  .overlay{position:fixed;inset:0;background:rgba(20,58,78,.55);display:none;align-items:center;justify-content:center;
+    padding:18px;z-index:50;backdrop-filter:blur(2px)}
+  .overlay.on{display:flex}
+  .modal{background:var(--card);border-radius:20px;padding:18px;max-width:420px;width:100%;
+    box-shadow:0 18px 50px rgba(20,58,78,.4)}
+  .modal h3{font-family:var(--serif);font-size:20px;margin:0 0 4px}
+  .modal p.m{font-size:12.5px;color:var(--mute);margin:0 0 12px}
+  .preview{background:#FFFDF8;border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+    font-size:13.5px;line-height:1.55;white-space:pre-wrap;max-height:240px;overflow:auto;color:var(--ink);
+    font-family:var(--sans)}
+  .modal-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .modal-actions button{flex:1;min-width:120px;border:0;border-radius:11px;padding:13px;font-weight:700;font-size:14px;cursor:pointer;color:#fff}
+  .mb-wa{background:#25D366}
+  .mb-copy{background:var(--blue)}
+  .mb-close{background:#E6DCC8;color:var(--ink);flex:none;min-width:0;padding:13px 18px}
+
+  /* Progress */
+  .progress{display:flex;gap:10px;margin-bottom:14px}
+  .progress>div{flex:1;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:9px 12px;
+    display:flex;flex-direction:column;gap:1px}
+  .progress .pk{font-size:11px;color:var(--mute);font-weight:600}
+  .progress b{font-family:var(--serif);font-size:18px}
+
+  /* Head-to-head duel */
+  .duel{display:flex;align-items:stretch;gap:0;margin:10px 0 4px}
+  .duel .side{flex:1;background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:16px 8px 14px;
+    text-align:center;position:relative;transition:.2s}
+  .duel .side.lead{border-color:var(--c);background:#fff;box-shadow:0 6px 18px rgba(51,41,30,.12)}
+  .duel .side .crown{position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:24px}
+  .duel .sname{font-weight:800;font-size:15px;line-height:1.12;word-break:break-word;min-height:34px;
+    display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .duel .side.lead .sname{color:var(--c)}
+  .duel .spts{font-family:var(--serif);font-weight:700;font-size:46px;line-height:1;margin-top:4px;color:var(--c)}
+  .duel .slbl{font-size:11px;color:var(--mute);font-weight:600;letter-spacing:1px;text-transform:uppercase}
+  .duel .vs{flex:none;width:42px;display:flex;align-items:center;justify-content:center;
+    font-family:var(--serif);font-weight:700;font-size:15px;color:var(--mute)}
+
+  /* Game lines & badges */
+  .game-line{display:flex;align-items:center;gap:9px;padding:9px 4px;border-bottom:1px solid var(--line)}
+  .game-line:last-child{border-bottom:0}
+  .game-badge{flex:none;width:26px;height:26px;border-radius:50%;background:var(--deep);color:#fff;
+    font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .game-pts{flex:none;font-weight:700;font-size:12px;color:var(--terra);background:#F7E7DE;padding:3px 9px;border-radius:999px}
+  .game-pts.sm{font-size:11px}
+  .game-win{flex:none;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ink);max-width:42%;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .game-win i{color:var(--mute);font-weight:500}
+  .game-head{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .game-head b{flex:1;font-size:16px}
+
+  /* Winner picker */
+  .win-pick{display:flex;gap:9px}
+  .winbtn{flex:1;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-weight:800;font-size:15px;
+    padding:14px 8px;border-radius:13px;cursor:pointer;transition:.12s;line-height:1.15}
+  .winbtn.on{color:#fff;box-shadow:0 4px 12px rgba(51,41,30,.16)}
+  .winbtn:active{transform:scale(.97)}
+
+  /* Reorder arrows */
+  .ord{width:28px;height:28px;border:0;background:#EFE6D4;color:#5C4F3B;border-radius:8px;font-size:12px;cursor:pointer;flex:none}
+  .ord:disabled{opacity:.35;cursor:default}
+</style>
+</head>
+<body>
+<header>
+  <div class="sun">☀️</div>
+  <div class="eyebrow">Ferienhaus · Provence · Sommer 2026</div>
+  <h1>Bierolympiade</h1>
+  <div class="sub">Mehrkampf · Ehre · Strafbier</div>
+  <div class="beerline">🍺 Live-Wertung</div>
+</header>
+
+<div class="wrap">
+  <nav class="tabs">
+    <button data-tab="tabelle" class="active">🏆 Tabelle</button>
+    <button data-tab="wertung">✍️ Wertung</button>
+    <button data-tab="setup">⚙️ Setup</button>
+  </nav>
+
+  <section id="tabelle" class="active"></section>
+  <section id="wertung"></section>
+  <section id="setup"></section>
+</div>
+
+<div class="overlay" id="shareOverlay">
+  <div class="modal">
+    <h3>🍺 Stand teilen</h3>
+    <p class="m">Vorschau der Nachricht — direkt an WhatsApp senden oder kopieren.</p>
+    <div class="preview" id="sharePreview"></div>
+    <div class="modal-actions">
+      <button class="mb-wa" data-act="share-wa">WhatsApp</button>
+      <button class="mb-copy" data-act="share-copy">📋 Kopieren</button>
+      <button class="mb-close" data-act="share-close">✕</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Storage (artifact persistence with in-memory fallback) ----------
+  var KEY = "bierolympiade:state";
+  var hasStore = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
+
+  async function loadState(){
+    if(hasStore){
+      try{
+        var res = await window.storage.get(KEY);
+        if(res && res.value) return JSON.parse(res.value);
+      }catch(e){ /* key missing -> use defaults */ }
+    }
+    return null;
+  }
+  var saveTimer=null;
+  function save(){
+    if(!hasStore) return;
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(function(){
+      try{ window.storage.set(KEY, JSON.stringify(state)); }catch(e){ console.error("save failed",e); }
+    },120);
+  }
+
+  // ---------- Palette for teams ----------
+  var PALETTE = ["#2C7193","#C25A3C","#7C894C","#8C7BBE","#1AA396","#D9A641","#B0492F","#5B8C9E"];
+  var uid = function(){ return Math.random().toString(36).slice(2,9); };
+
+  // ---------- Default seed ----------
+  function seed(){
+    var teams = [
+      {id:uid(), name:"Team Pastis", color:PALETTE[0]},
+      {id:uid(), name:"Team Olive",  color:PALETTE[2]}
+    ];
+    var disc = [
+      {id:uid(), name:"Volleyball"},
+      {id:uid(), name:"Cornhole"},
+      {id:uid(), name:"Flunky Ball"},
+      {id:uid(), name:"Pool Relay"},
+      {id:uid(), name:"Spikeball + Pétanque"},
+      {id:uid(), name:"Darts"},
+      {id:uid(), name:"Team Beer Pong"},
+      {id:uid(), name:"Codenames / Bezzerwizzer"},
+      {id:uid(), name:"Grand Final Relay"}
+    ];
+    return {teams:teams, disciplines:disc, winners:{}, penalties:{}, jokerUsed:{}, ui:{}};
+  }
+
+  var state=null, activeTab="tabelle";
+
+  // ---------- Helpers (Schlag-den-Raab: Spiel N = N Punkte, nur Sieger) ----------
+  function discPoints(discId){
+    var i=state.disciplines.findIndex(function(d){return d.id===discId;});
+    return i<0 ? 0 : i+1;
+  }
+  function discIndex(discId){ return state.disciplines.findIndex(function(d){return d.id===discId;}); }
+  function winnerOf(discId){ return state.winners[discId]||null; }
+  function setWinner(discId, teamId){ state.winners[discId]=teamId; save(); }
+
+  // Joker: jeder Team hat genau 1 Joker, einsetzbar nur auf den ersten 6 Spielen (Position),
+  // verdoppelt die Punkte des Teams, falls es das Event gewinnt.
+  function jokerAllowed(discId){ var i=discIndex(discId); return i>=0 && i<6; }
+  function jokerEvent(teamId){ return state.jokerUsed[teamId]||null; } // discId or null
+  function jokerActiveOn(discId, teamId){ return state.jokerUsed[teamId]===discId; }
+  function toggleJoker(discId, teamId){
+    if(state.jokerUsed[teamId]===discId){ state.jokerUsed[teamId]=null; }
+    else if(!state.jokerUsed[teamId]){ state.jokerUsed[teamId]=discId; }
+    save();
+  }
+  function eventPoints(discId, teamId){
+    var base=discPoints(discId);
+    return jokerActiveOn(discId, teamId) ? base*2 : base;
+  }
+  function totalPts(teamId){
+    var t=0;
+    state.disciplines.forEach(function(d){ if(state.winners[d.id]===teamId) t+=eventPoints(d.id, teamId); });
+    return t;
+  }
+  function totalAvailable(){ var n=state.disciplines.length; return n*(n+1)/2; }
+  function neededToWin(){ var T=totalAvailable(); return T>0 ? Math.floor(T/2)+1 : 0; }
+  function penalty(teamId){ return state.penalties[teamId]||0; }
+  function setPenalty(teamId,v){ state.penalties[teamId]=Math.max(0,v); save(); }
+  function totalBeer(){ var t=0; state.teams.forEach(function(x){t+=penalty(x.id);}); return t; }
+
+  function standings(){
+    return state.teams.map(function(t){
+      return {team:t, pts:totalPts(t.id), beer:penalty(t.id)};
+    }).sort(function(a,b){ return b.pts-a.pts || a.team.name.localeCompare(b.team.name); });
+  }
+
+  function esc(s){ return (s||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+  // ---------- Renderers ----------
+  function render(){
+    document.querySelectorAll("nav.tabs button").forEach(function(b){
+      b.classList.toggle("active", b.dataset.tab===activeTab);
+    });
+    document.querySelectorAll("section").forEach(function(s){
+      s.classList.toggle("active", s.id===activeTab);
+    });
+    if(activeTab==="tabelle") renderTabelle();
+    else if(activeTab==="wertung") renderWertung();
+    else renderSetup();
+  }
+
+  function renderTabelle(){
+    var el=document.getElementById("tabelle");
+    if(state.teams.length===0){
+      el.innerHTML='<div class="empty">Noch keine Teams. Leg im Tab <b>Setup</b> los! ⚙️</div>';
+      return;
+    }
+    var rows=standings();
+    var html="";
+
+    // share
+    html+='<button class="share-btn" data-act="share">📤 Stand in WhatsApp teilen</button>';
+
+    // progress bar (points to win)
+    if(state.disciplines.length){
+      var need=neededToWin(), lead=rows[0]?rows[0].pts:0;
+      var won = lead>=need;
+      html+='<div class="progress">'+
+        '<div><span class="pk">🎯 Zu vergeben</span><b>'+totalAvailable()+' Pkt</b></div>'+
+        '<div><span class="pk">'+(won?'🏆 Sieg ab':'Für den Sieg')+'</span><b>'+need+' Pkt</b></div>'+
+      '</div>';
+    }
+
+    if(state.teams.length===2){
+      // ---- Head-to-Head duel ----
+      var a=rows[0], b=rows[1];
+      var aLead=a.pts>b.pts, bLead=b.pts>a.pts;
+      html+='<div class="duel">'+
+        '<div class="side '+(aLead?'lead':'')+'" style="--c:'+a.team.color+'">'+
+          (aLead?'<div class="crown">👑</div>':'')+
+          '<div class="sname">'+esc(a.team.name)+'</div>'+
+          '<div class="spts">'+a.pts+'</div><div class="slbl">Punkte</div>'+
+        '</div>'+
+        '<div class="vs">VS</div>'+
+        '<div class="side '+(bLead?'lead':'')+'" style="--c:'+b.team.color+'">'+
+          (bLead?'<div class="crown">👑</div>':'')+
+          '<div class="sname">'+esc(b.team.name)+'</div>'+
+          '<div class="spts">'+b.pts+'</div><div class="slbl">Punkte</div>'+
+        '</div>'+
+      '</div>';
+    } else {
+      // fallback ranking for !=2 teams
+      html+='<div class="card">';
+      rows.forEach(function(r,i){
+        html+='<div class="rank-row">'+
+          '<div class="rank-num">'+(i+1)+'</div>'+
+          '<span class="dot" style="background:'+r.team.color+'"></span>'+
+          '<div class="rank-name">'+esc(r.team.name)+'</div>'+
+          '<div class="rank-pts">'+r.pts+' <small>Pkt</small></div>'+
+        '</div>';
+      });
+      html+='</div>';
+    }
+
+    // strafbier card
+    html+='<div class="label" style="margin-top:16px">Strafbier 🍺</div>';
+    html+='<div class="card">';
+    rows.forEach(function(r){
+      html+='<div class="rank-row">'+
+        '<span class="dot" style="background:'+r.team.color+'"></span>'+
+        '<div class="rank-name">'+esc(r.team.name)+'</div>'+
+        '<div class="beer-counter">'+
+          '<button class="step beer-minus" data-act="beer" data-id="'+r.team.id+'" data-d="-1">−</button>'+
+          '<span class="bval">'+r.beer+'<span class="em">🍺</span></span>'+
+          '<button class="step beer-plus" data-act="beer" data-id="'+r.team.id+'" data-d="1">+</button>'+
+        '</div>'+
+      '</div>';
+    });
+    html+='</div>';
+
+    // games overview
+    if(state.disciplines.length){
+      html+='<div class="label" style="margin-top:16px">Spiele</div>';
+      html+='<div class="card">';
+      state.disciplines.forEach(function(d,i){
+        var w=winnerOf(d.id);
+        var wt=w?state.teams.find(function(x){return x.id===w;}):null;
+        html+='<div class="game-line">'+
+          '<span class="game-badge">'+(i+1)+'</span>'+
+          '<div class="rank-name">'+esc(d.name)+'</div>'+
+          '<span class="game-pts">'+(i+1)+' Pkt</span>'+
+          '<span class="game-win">'+(wt?('<span class="dot" style="background:'+wt.color+'"></span>'+esc(wt.name)):'<i>offen</i>')+'</span>'+
+        '</div>';
+      });
+      html+='</div>';
+    }
+    html+='<div class="hint" style="margin-top:8px">Sieger eintragen im Tab <b>Wertung</b>. 🏆</div>';
+    el.innerHTML=html;
+  }
+
+  function renderWertung(){
+    var el=document.getElementById("wertung");
+    if(state.disciplines.length===0){
+      el.innerHTML='<h2 class="sec">Wertung</h2><div class="empty">Noch keine Spiele. Füg im Tab <b>Setup</b> deine Disziplinen hinzu. 🎯</div>';
+      return;
+    }
+    if(state.teams.length===0){
+      el.innerHTML='<h2 class="sec">Wertung</h2><div class="empty">Erst Teams im Tab <b>Setup</b> anlegen. 👥</div>';
+      return;
+    }
+    var html='<h2 class="sec">Wer hat gewonnen?</h2>';
+    html+='<div class="hint">Schlag-den-Raab-Wertung: Spiel 1 = 1 Pkt, Spiel 2 = 2 Pkt … nur der Sieger bekommt die Punkte. Nochmal tippen = wieder offen.</div>';
+    state.disciplines.forEach(function(d,i){
+      var w=winnerOf(d.id);
+      html+='<div class="card">';
+      html+='<div class="game-head"><span class="game-badge">Spiel '+(i+1)+'</span><b>'+esc(d.name)+'</b><span class="game-pts">'+(i+1)+' Pkt</span></div>';
+      html+='<div class="win-pick">';
+      state.teams.forEach(function(t){
+        var on=w===t.id;
+        html+='<button class="winbtn '+(on?'on':'')+'" data-act="winner" data-d="'+d.id+'" data-id="'+t.id+'"'+
+          (on?(' style="background:'+t.color+';border-color:'+t.color+'"'):'')+'>'+
+          (on?'👑 ':'')+esc(t.name)+'</button>';
+      });
+      html+='</div></div>';
+    });
+    el.innerHTML=html;
+  }
+
+  function renderSetup(){
+    var el=document.getElementById("setup");
+    var html='<h2 class="sec">Setup</h2>';
+
+    // Teams
+    html+='<div class="label">Teams (genau 2)</div>';
+    html+='<div class="card">';
+    if(state.teams.length===0){
+      html+='<div class="empty" style="padding:14px">Noch keine Teams.</div>';
+    } else {
+      html+=state.teams.map(function(t){
+        var sw=PALETTE.map(function(c){
+          return '<span class="sw '+(c===t.color?"on":"")+'" style="background:'+c+'" data-act="color" data-id="'+t.id+'" data-c="'+c+'"></span>';
+        }).join("");
+        return '<div class="setup-item">'+
+          '<input class="name" value="'+esc(t.name)+'" data-act="rename-team" data-id="'+t.id+'" maxlength="22">'+
+          '<div class="swatches">'+sw+'</div>'+
+          '<button class="del" data-act="del-team" data-id="'+t.id+'">🗑</button>'+
+        '</div>';
+      }).join("");
+    }
+    if(state.teams.length<2){
+      html+='<div class="add-row">'+
+        '<input id="newTeam" placeholder="Teamname…" maxlength="22">'+
+        '<button data-act="add-team">+ Team</button>'+
+      '</div>';
+    } else {
+      html+='<div class="hint" style="margin:8px 2px 0">Für Schlag-den-Raab-Modus reichen 2 Teams. Zum Umbenennen einfach oben reintippen.</div>';
+    }
+    html+='</div>';
+
+    // Disciplines
+    html+='<div class="label" style="margin-top:18px">Spiele · Reihenfolge = Punkte</div>';
+    html+='<div class="card">';
+    if(state.disciplines.length===0){
+      html+='<div class="empty" style="padding:14px">Noch keine Spiele.</div>';
+    } else {
+      var last=state.disciplines.length-1;
+      html+=state.disciplines.map(function(d,i){
+        return '<div class="setup-item">'+
+          '<span class="game-badge">'+(i+1)+'</span>'+
+          '<input class="name" value="'+esc(d.name)+'" data-act="rename-disc" data-id="'+d.id+'" maxlength="28">'+
+          '<span class="game-pts sm">'+(i+1)+' Pkt</span>'+
+          '<button class="ord" data-act="disc-up" data-id="'+d.id+'"'+(i===0?' disabled':'')+'>▲</button>'+
+          '<button class="ord" data-act="disc-down" data-id="'+d.id+'"'+(i===last?' disabled':'')+'>▼</button>'+
+          '<button class="del" data-act="del-disc" data-id="'+d.id+'">🗑</button>'+
+        '</div>';
+      }).join("");
+    }
+    html+='<div class="add-row">'+
+      '<input id="newDisc" placeholder="Spielname… (z.B. Dosenwerfen)" maxlength="28">'+
+      '<button class="olive btn" data-act="add-disc">+ Spiel</button>'+
+    '</div>';
+    html+='</div>';
+
+    html+='<button class="btn danger" data-act="reset">Alles zurücksetzen</button>';
+    html+='<div class="hint" style="text-align:center;margin-top:10px">'+
+      (hasStore?'Dein Stand wird automatisch gespeichert. ✅':'Hinweis: lokal geöffnet — Stand wird nur in dieser Sitzung gehalten.')+'</div>';
+    el.innerHTML=html;
+  }
+
+  // ---------- Events ----------
+  document.querySelector("nav.tabs").addEventListener("click",function(e){
+    var b=e.target.closest("button[data-tab]"); if(!b) return;
+    activeTab=b.dataset.tab; render();
+  });
+
+  document.body.addEventListener("click",function(e){
+    var t=e.target.closest("[data-act]"); if(!t) return;
+    var act=t.dataset.act, id=t.dataset.id;
+
+    if(act==="beer"){ setPenalty(id, penalty(id)+parseInt(t.dataset.d,10)); renderTabelle(); }
+    else if(act==="winner"){ var dd=t.dataset.d; setWinner(dd, winnerOf(dd)===id?null:id); renderWertung(); }
+    else if(act==="color"){ var tm=state.teams.find(function(x){return x.id===id;}); if(tm){tm.color=t.dataset.c; save(); renderSetup();} }
+    else if(act==="del-team"){ state.teams=state.teams.filter(function(x){return x.id!==id;}); delete state.penalties[id];
+      for(var k in state.winners){ if(state.winners[k]===id) state.winners[k]=null; } save(); renderSetup(); }
+    else if(act==="del-disc"){ state.disciplines=state.disciplines.filter(function(x){return x.id!==id;});
+      delete state.winners[id]; save(); renderSetup(); }
+    else if(act==="disc-up"){ moveDisc(id,-1); }
+    else if(act==="disc-down"){ moveDisc(id,1); }
+    else if(act==="add-team"){ addTeam(); }
+    else if(act==="add-disc"){ addDisc(); }
+    else if(act==="reset"){
+      if(confirm("Wirklich alles zurücksetzen? Teams, Spiele und Punkte werden gelöscht.")){
+        state=seed(); save(); render();
+      }
+    }
+    else if(act==="share"){ openShare(); }
+    else if(act==="share-close"){ document.getElementById("shareOverlay").classList.remove("on"); }
+    else if(act==="share-wa"){ shareWhatsApp(); }
+    else if(act==="share-copy"){ shareCopy(t); }
+  });
+
+  document.body.addEventListener("input",function(e){
+    var t=e.target.closest("[data-act]"); if(!t) return;
+    if(t.dataset.act==="rename-team"){ var tm=state.teams.find(function(x){return x.id===t.dataset.id;}); if(tm){tm.name=t.value; save();} }
+    else if(t.dataset.act==="rename-disc"){ var d=state.disciplines.find(function(x){return x.id===t.dataset.id;}); if(d){d.name=t.value; save();} }
+  });
+
+  // Enter key adds
+  document.body.addEventListener("keydown",function(e){
+    if(e.key!=="Enter") return;
+    if(e.target.id==="newTeam"){ addTeam(); }
+    if(e.target.id==="newDisc"){ addDisc(); }
+  });
+
+  function addTeam(){
+    if(state.teams.length>=2) return;
+    var inp=document.getElementById("newTeam"); if(!inp) return;
+    var name=(inp.value||"").trim(); if(!name) name="Team "+(state.teams.length+1);
+    state.teams.push({id:uid(), name:name, color:PALETTE[state.teams.length%PALETTE.length]});
+    save(); renderSetup();
+    var n=document.getElementById("newTeam"); if(n) n.focus();
+  }
+  function addDisc(){
+    var inp=document.getElementById("newDisc"); if(!inp) return;
+    var name=(inp.value||"").trim(); if(!name) name="Spiel "+(state.disciplines.length+1);
+    state.disciplines.push({id:uid(), name:name});
+    save(); renderSetup();
+    var n=document.getElementById("newDisc"); if(n) n.focus();
+  }
+  function moveDisc(id, dir){
+    var i=state.disciplines.findIndex(function(d){return d.id===id;});
+    var j=i+dir;
+    if(i<0 || j<0 || j>=state.disciplines.length) return;
+    var arr=state.disciplines;
+    var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+    save(); renderSetup();
+  }
+
+  // ---------- Share ----------
+  function shareText(){
+    var rows=standings();
+    var lines=["🏆 *BIEROLYMPIADE · Provence*","_Aktueller Stand_",""];
+    if(rows.length===0){ lines.push("Noch keine Teams eingetragen."); }
+    rows.forEach(function(r,i){
+      var lead = i===0 && rows.length>1 && rows[0].pts>rows[1].pts;
+      var beer = r.beer ? "  ("+r.beer+"🍺)" : "";
+      lines.push((lead?"👑 ":"   ")+r.team.name+" — *"+r.pts+" Pkt*"+beer);
+    });
+    if(state.disciplines.length){
+      lines.push("");
+      var played=0; state.disciplines.forEach(function(d){ if(winnerOf(d.id)) played++; });
+      lines.push("🎮 Spiele: "+played+"/"+state.disciplines.length+"  ·  🎯 Sieg ab "+neededToWin()+" Pkt");
+    }
+    lines.push("🍺 Strafbier gesamt: "+totalBeer());
+    lines.push("Prost! 🥂");
+    return lines.join("\n");
+  }
+
+  async function openShare(){
+    var txt=shareText();
+    // Native share sheet first (best on phones → direkt WhatsApp wählbar)
+    if(navigator.share){
+      try{ await navigator.share({text:txt}); return; }
+      catch(e){ if(e && e.name==="AbortError") return; /* sonst Modal zeigen */ }
+    }
+    document.getElementById("sharePreview").textContent=txt;
+    document.getElementById("shareOverlay").classList.add("on");
+  }
+  function shareWhatsApp(){
+    var url="https://wa.me/?text="+encodeURIComponent(shareText());
+    var w=window.open(url,"_blank");
+    if(!w){ shareCopy(); }
+  }
+  async function shareCopy(btn){
+    var txt=shareText();
+    try{
+      await navigator.clipboard.writeText(txt);
+      if(btn){ var o=btn.textContent; btn.textContent="✓ Kopiert!"; setTimeout(function(){btn.textContent=o;},1500); }
+    }catch(e){
+      var pv=document.getElementById("sharePreview");
+      if(pv){ var range=document.createRange(); range.selectNodeContents(pv);
+        var sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+    }
+  }
+  document.getElementById("shareOverlay").addEventListener("click",function(e){
+    if(e.target.id==="shareOverlay") e.currentTarget.classList.remove("on");
+  });
+
+  // ---------- Init ----------
+  (async function init(){
+    state = await loadState();
+    if(!state || !state.teams){ state=seed(); save(); }
+    if(!state.winners) state.winners={};       // migrate from old scores model
+    if(!state.penalties) state.penalties={};
+    if(!state.disciplines) state.disciplines=[];
+    if(!state.ui) state.ui={};
+    delete state.scores;                        // drop obsolete field
+    render();
+  })();
+})();
+</script>
+</body>
+</html>
