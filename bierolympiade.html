@@ -220,30 +220,182 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
   "use strict";
 
-  // ---------- Storage (artifact persistence with in-memory fallback) ----------
+  // ---------- Shared storage (Supabase) with local fallback ----------
   var KEY = "bierolympiade:state";
-  var hasStore = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
+  var SYNC = {
+    // Fill these three values after creating a Supabase project.
+    // If left unchanged, the app stays local-only per device.
+    enabled: true,
+    supabaseUrl: "https://YOUR-PROJECT.supabase.co",
+    supabaseAnonKey: "YOUR-ANON-KEY",
+    room: "provence-2026"
+  };
+  var SUPABASE_TABLE = "olympiade_state";
+  var hasArtifactStore = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
+  var hasLocalStorage = typeof window !== "undefined" && !!window.localStorage;
+  var supabaseClient = null;
+  var syncReady = false;
+  var syncLabel = "Nur lokal gespeichert (pro Gerät).";
+  var lastSavedJson = "";
+  var remoteChannel = null;
 
-  async function loadState(){
-    if(hasStore){
+  function isPlaceholder(v){
+    return !v || /YOUR-PROJECT|YOUR-ANON-KEY/.test(v);
+  }
+  function canUseSupabase(){
+    if(!SYNC.enabled) return false;
+    if(typeof window === "undefined") return false;
+    if(!window.supabase || typeof window.supabase.createClient !== "function") return false;
+    if(isPlaceholder(SYNC.supabaseUrl) || isPlaceholder(SYNC.supabaseAnonKey)) return false;
+    return true;
+  }
+  function normalizeState(raw){
+    if(!raw || typeof raw !== "object") return null;
+    if(!raw.teams) raw.teams=[];
+    if(!raw.disciplines) raw.disciplines=[];
+    if(!raw.winners) raw.winners={};
+    if(!raw.penalties) raw.penalties={};
+    if(!raw.jokerUsed) raw.jokerUsed={};
+    if(!raw.ui) raw.ui={};
+    delete raw.scores;
+    return raw;
+  }
+  async function loadLocalState(){
+    if(hasArtifactStore){
       try{
         var res = await window.storage.get(KEY);
-        if(res && res.value) return JSON.parse(res.value);
-      }catch(e){ /* key missing -> use defaults */ }
+        if(res && res.value) return normalizeState(JSON.parse(res.value));
+      }catch(e){ /* ignore and try localStorage */ }
+    }
+    if(hasLocalStorage){
+      try{
+        var txt = window.localStorage.getItem(KEY);
+        if(txt) return normalizeState(JSON.parse(txt));
+      }catch(e){ console.warn("localStorage read failed", e); }
     }
     return null;
   }
+  async function saveLocalState(snapshot){
+    var text = JSON.stringify(snapshot);
+    if(hasArtifactStore){
+      try{ await window.storage.set(KEY, text); }catch(e){ console.warn("artifact save failed", e); }
+    }
+    if(hasLocalStorage){
+      try{ window.localStorage.setItem(KEY, text); }catch(e){ console.warn("localStorage save failed", e); }
+    }
+  }
+  function setupRealtime(){
+    if(!supabaseClient) return;
+    if(remoteChannel){
+      supabaseClient.removeChannel(remoteChannel);
+      remoteChannel = null;
+    }
+    remoteChannel = supabaseClient
+      .channel("room-"+SYNC.room)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: SUPABASE_TABLE,
+        filter: "room=eq."+SYNC.room
+      }, function(payload){
+        if(!payload || !payload.new || !payload.new.state) return;
+        var incoming = normalizeState(payload.new.state);
+        if(!incoming) return;
+        var incomingJson = JSON.stringify(incoming);
+        if(incomingJson === lastSavedJson) return;
+        state = incoming;
+        lastSavedJson = incomingJson;
+        render();
+      })
+      .subscribe();
+  }
+  async function loadRemoteState(){
+    var res = await supabaseClient
+      .from(SUPABASE_TABLE)
+      .select("state")
+      .eq("room", SYNC.room)
+      .maybeSingle();
+    if(res.error) throw res.error;
+    return res.data && res.data.state ? normalizeState(res.data.state) : null;
+  }
+  async function saveRemoteState(snapshot){
+    var res = await supabaseClient
+      .from(SUPABASE_TABLE)
+      .upsert({
+        room: SYNC.room,
+        state: snapshot,
+        updated_at: new Date().toISOString()
+      }, {onConflict: "room"});
+    if(res.error) throw res.error;
+  }
+  async function loadState(){
+    var local = await loadLocalState();
+    if(!canUseSupabase()){
+      syncReady = false;
+      syncLabel = "Nur lokal gespeichert (pro Gerät).";
+      return local;
+    }
+
+    try{
+      supabaseClient = window.supabase.createClient(SYNC.supabaseUrl, SYNC.supabaseAnonKey, {
+        auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false}
+      });
+      var remote = await loadRemoteState();
+      syncReady = true;
+      syncLabel = "Live-Sync aktiv. Alle sehen denselben Stand.";
+      setupRealtime();
+
+      if(remote){
+        lastSavedJson = JSON.stringify(remote);
+        return remote;
+      }
+      if(local){
+        await saveRemoteState(local);
+        lastSavedJson = JSON.stringify(local);
+        return local;
+      }
+      return null;
+    }catch(e){
+      console.error("Supabase sync failed, fallback to local", e);
+      supabaseClient = null;
+      syncReady = false;
+      syncLabel = "Sync-Fehler, nur lokal gespeichert.";
+      return local;
+    }
+  }
   var saveTimer=null;
+  var saveInFlight=false;
+  var saveQueued=false;
+  async function flushSave(){
+    if(!state) return;
+    if(saveInFlight){ saveQueued=true; return; }
+    saveInFlight=true;
+    var snapshot = JSON.parse(JSON.stringify(state));
+    var snapshotJson = JSON.stringify(snapshot);
+    try{
+      await saveLocalState(snapshot);
+      if(syncReady && supabaseClient){
+        await saveRemoteState(snapshot);
+      }
+      lastSavedJson = snapshotJson;
+    }catch(e){
+      console.error("save failed", e);
+    }finally{
+      saveInFlight=false;
+      if(saveQueued){
+        saveQueued=false;
+        flushSave();
+      }
+    }
+  }
   function save(){
-    if(!hasStore) return;
     clearTimeout(saveTimer);
-    saveTimer=setTimeout(function(){
-      try{ window.storage.set(KEY, JSON.stringify(state)); }catch(e){ console.error("save failed",e); }
-    },120);
+    saveTimer=setTimeout(flushSave,120);
   }
 
   // ---------- Palette for teams ----------
@@ -500,8 +652,10 @@
     html+='</div>';
 
     html+='<button class="btn danger" data-act="reset">Alles zurücksetzen</button>';
-    html+='<div class="hint" style="text-align:center;margin-top:10px">'+
-      (hasStore?'Dein Stand wird automatisch gespeichert. ✅':'Hinweis: lokal geöffnet — Stand wird nur in dieser Sitzung gehalten.')+'</div>';
+    var syncHint = syncReady
+      ? (syncLabel+' Raum: <b>'+esc(SYNC.room)+'</b>.')
+      : ('Nur lokal gespeichert. Trage Supabase URL + Anon Key oben im Code ein, um einen gemeinsamen Stand zu nutzen.');
+    html+='<div class="hint" style="text-align:center;margin-top:10px">'+syncHint+'</div>';
     el.innerHTML=html;
   }
 
@@ -626,11 +780,12 @@
 
   // ---------- Init ----------
   (async function init(){
-    state = await loadState();
+    state = normalizeState(await loadState());
     if(!state || !state.teams){ state=seed(); save(); }
     if(!state.winners) state.winners={};       // migrate from old scores model
     if(!state.penalties) state.penalties={};
     if(!state.disciplines) state.disciplines=[];
+    if(!state.jokerUsed) state.jokerUsed={};
     if(!state.ui) state.ui={};
     delete state.scores;                        // drop obsolete field
     render();
